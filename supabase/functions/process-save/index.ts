@@ -21,26 +21,20 @@ serve(async (req) => {
     }
 
     try {
-        const azureApiKey = Deno.env.get('AZURE_OPENAI_API_KEY');
-        const azureEndpoint = Deno.env.get('AZURE_OPENAI_ENDPOINT'); // https://neverloose.openai.azure.com/
-        const chatDeployment = Deno.env.get('AZURE_OPENAI_CHAT_DEPLOYMENT');
-        const embeddingDeployment = Deno.env.get('AZURE_OPENAI_EMBEDDING_DEPLOYMENT');
-        const apiVersion = '2024-02-15-preview'; // Default or from env
-
-        if (!azureApiKey || !azureEndpoint) {
-            throw new Error('Azure OpenAI credentials missing.');
+        const openaiKey = Deno.env.get('OPENAI_API_KEY');
+        if (!openaiKey) {
+            throw new Error('OPENAI_API_KEY secret missing.');
         }
 
-        // 2. Generate Summary and Tags using Azure OpenAI Chat
-        const chatUrl = `${azureEndpoint}/openai/deployments/${chatDeployment}/chat/completions?api-version=${apiVersion}`;
-
-        const aiResponse = await fetch(chatUrl, {
+        // 2. Generate Summary and Tags using OpenAI GPT-4o-mini (Super Cheap)
+        const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
-                'api-key': azureApiKey,
+                'Authorization': `Bearer ${openaiKey}`,
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
+                model: 'gpt-4o-mini',
                 messages: [
                     { role: 'system', content: 'You are a helpful assistant that summarizes web pages and generates tags. Provide output in JSON format: { "summary": "...", "tags": ["...", "..."] }' },
                     { role: 'user', content: `Summarize this page and give 3 tags:\nTitle: ${save.title}\nDescription: ${save.description}\nURL: ${save.url}` }
@@ -54,16 +48,15 @@ serve(async (req) => {
 
         const { summary, tags } = JSON.parse(aiData.choices[0].message.content);
 
-        // 3. Generate Embeddings using Azure OpenAI Embeddings
-        const embeddingUrl = `${azureEndpoint}/openai/deployments/${embeddingDeployment}/embeddings?api-version=${apiVersion}`;
-
-        const embeddingResponse = await fetch(embeddingUrl, {
+        // 3. Generate Embeddings using OpenAI text-embedding-3-small (Cheapest)
+        const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
             method: 'POST',
             headers: {
-                'api-key': azureApiKey,
+                'Authorization': `Bearer ${openaiKey}`,
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
+                model: 'text-embedding-3-small',
                 input: `${save.title} ${save.description} ${summary} ${tags.join(' ')}`,
             }),
         });

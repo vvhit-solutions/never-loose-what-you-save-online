@@ -36,6 +36,7 @@ ON saves FOR UPDATE
 USING (true);
 
 -- Create a function for similarity search
+DROP FUNCTION IF EXISTS match_saves(vector,float,int);
 CREATE OR REPLACE FUNCTION match_saves (
   query_embedding VECTOR(1536),
   match_threshold FLOAT,
@@ -48,6 +49,7 @@ RETURNS TABLE (
   description TEXT,
   summary TEXT,
   tags TEXT[],
+  created_at TIMESTAMPTZ,
   similarity FLOAT
 )
 LANGUAGE plpgsql
@@ -61,6 +63,7 @@ BEGIN
     saves.description,
     saves.summary,
     saves.tags,
+    saves.created_at,
     1 - (saves.embedding <=> query_embedding) AS similarity
   FROM saves
   WHERE 1 - (saves.embedding <=> query_embedding) > match_threshold

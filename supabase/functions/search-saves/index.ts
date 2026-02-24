@@ -10,25 +10,20 @@ serve(async (req) => {
     )
 
     try {
-        const azureApiKey = Deno.env.get('AZURE_OPENAI_API_KEY');
-        const azureEndpoint = Deno.env.get('AZURE_OPENAI_ENDPOINT');
-        const embeddingDeployment = Deno.env.get('AZURE_OPENAI_EMBEDDING_DEPLOYMENT');
-        const apiVersion = '2024-02-15-preview';
-
-        if (!azureApiKey || !azureEndpoint) {
-            throw new Error('Azure OpenAI credentials missing.');
+        const openaiKey = Deno.env.get('OPENAI_API_KEY');
+        if (!openaiKey) {
+            throw new Error('OPENAI_API_KEY secret missing.');
         }
 
-        // 1. Generate embedding for the search query using Azure OpenAI
-        const embeddingUrl = `${azureEndpoint}/openai/deployments/${embeddingDeployment}/embeddings?api-version=${apiVersion}`;
-
-        const embeddingResponse = await fetch(embeddingUrl, {
+        // 1. Generate embedding for the search query using OpenAI text-embedding-3-small
+        const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
             method: 'POST',
             headers: {
-                'api-key': azureApiKey,
+                'Authorization': `Bearer ${openaiKey}`,
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
+                model: 'text-embedding-3-small',
                 input: query,
             }),
         });
