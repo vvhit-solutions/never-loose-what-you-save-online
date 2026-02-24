@@ -38,7 +38,7 @@ serve(async (req) => {
                     model: 'gpt-4o-mini',
                     messages: [
                         { role: 'system', content: 'JSON only: {"s":"summary","t":["tag1","tag2"]}' },
-                        { role: 'user', content: `${save.title}\n${save.description}` }
+                        { role: 'user', content: `${save.title}\n${(save.description + ' ' + (save.selected_text || '')).slice(0, 3000)}` }
                     ],
                     response_format: { type: 'json_object' },
                     max_tokens: 150 // TOKEN OPTIMIZATION: Limit output
@@ -53,7 +53,7 @@ serve(async (req) => {
                 },
                 body: JSON.stringify({
                     model: 'text-embedding-3-small',
-                    input: `${save.title} ${save.description}`.slice(0, 1000), // TOKEN OPTIMIZATION: Truncate input
+                    input: `${save.title} ${save.description} ${save.selected_text || ''}`.slice(0, 3000), // TOKEN OPTIMIZATION: Truncate input
                 }),
             })
         ]);
