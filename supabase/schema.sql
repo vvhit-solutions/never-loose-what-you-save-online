@@ -1,6 +1,21 @@
 -- Create a table for saved web pages
 CREATE EXTENSION IF NOT EXISTS vector;
 
+-- ... (table definition)
+
+-- PERFORMANCE OPTIMIZATION: Index for lightning-fast retrieval
+CREATE INDEX IF NOT EXISTS saves_embedding_hnsw_idx ON saves 
+USING hnsw (embedding vector_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+
+-- HELPER: View to check indexing status
+CREATE OR REPLACE VIEW brain_status AS
+SELECT 
+  COUNT(*) as total_saves,
+  COUNT(embedding) as ai_indexed,
+  (COUNT(*) - COUNT(embedding)) as processing_needed
+FROM saves;
+
 CREATE TABLE IF NOT EXISTS saves (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES auth.users(id),
