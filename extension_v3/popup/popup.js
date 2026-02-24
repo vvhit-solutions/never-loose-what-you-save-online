@@ -104,21 +104,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Memory Jog (Resurfacing)
     async function checkMemoryJog() {
+        // For the best UX, we'll try to show a memory jog if we have saves,
+        // but prioritize showing it if it's been a while.
         const { lastJog } = await chrome.storage.local.get('lastJog');
         const now = Date.now();
-        const twoDays = 2 * 24 * 60 * 60 * 1000;
+        const oneDay = 24 * 60 * 60 * 1000;
 
-        if (!lastJog || (now - lastJog) > twoDays) {
-            chrome.runtime.sendMessage({ action: 'getRecentSaves' }, (res) => {
-                if (res.success && res.data.length > 0) {
-                    const random = res.data[Math.floor(Math.random() * res.data.length)];
-                    jogLink.textContent = random.title;
-                    jogLink.onclick = () => chrome.tabs.create({ url: random.url });
-                    memoryJog.style.display = 'block';
-                    chrome.storage.local.set({ lastJog: now });
-                }
-            });
-        }
+        // We'll show a "random discovery" almost always if items exist,
+        // but the user can dismiss it or we can rotate it daily.
+        chrome.runtime.sendMessage({ action: 'getRecentSaves' }, (res) => {
+            if (res.success && res.data && res.data.length > 0) {
+                // Pick a random item from the last 10
+                const random = res.data[Math.floor(Math.random() * res.data.length)];
+                jogLink.textContent = random.title;
+                jogLink.onclick = () => chrome.tabs.create({ url: random.url });
+                memoryJog.style.display = 'block';
+                chrome.storage.local.set({ lastJog: now });
+            } else {
+                memoryJog.style.display = 'none';
+            }
+        });
     }
 
     // Import Bookmarks

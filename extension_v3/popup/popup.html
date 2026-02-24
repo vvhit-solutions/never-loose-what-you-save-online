@@ -10,7 +10,8 @@
     <div class="header">
         <div class="logo">Never Lose Again</div>
         <div id="connection-status" title="Connected to Cloud"
-            style="width: 8px; height: 8px; border-radius: 50%; background: #2ecc71;"></div>
+            style="width: 8px; height: 8px; border-radius: 50%; background: #2ecc71; box-shadow: 0 0 8px #2ecc71;">
+        </div>
     </div>
 
     <div class="tabs">
@@ -29,9 +30,9 @@
         <div id="save-status" class="status"></div>
 
         <!-- Memory Jog (Resurfacing) -->
-        <div id="memory-jog" class="memory-jog" style="display: none;">
-            <div class="jog-header">Memory Jog (2 days ago)</div>
-            <div class="jog-content" id="jog-link">How to bake the perfect sourdough...</div>
+        <div id="memory-jog" class="memory-jog">
+            <div class="jog-header">Memory Jog</div>
+            <div class="jog-content" id="jog-link">Fetching a memory to rediscover...</div>
         </div>
     </div>
 
@@ -41,19 +42,40 @@
             <input type="text" id="search-input" class="search-input"
                 placeholder="Search memories (e.g. 'coding tips')">
         </div>
-        <div id="recent-header" style="font-size: 11px; font-weight: 700; color: #888; margin-bottom: 8px;">RECENT SAVES
-        </div>
+        <div id="recent-header"
+            style="font-size: 10px; font-weight: 800; color: #666; margin-bottom: 10px; letter-spacing: 0.5px;">
+            RECENT SAVES</div>
         <div id="results-list" class="results-list">
-            <!-- Search results or recent items will appear here -->
-            <div style="text-align: center; color: #888; padding: 20px; font-size: 12px;">Loading your history...</div>
+            <div style="text-align: center; color: #888; padding: 20px; font-size: 12px; opacity: 0.6;">Loading your
+                history...</div>
         </div>
     </div>
 
     <!-- Settings Pane -->
     <div id="settings-pane" class="content-pane">
-        <div style="font-size: 12px; color: #888; margin-bottom: 12px;">ACCOUNT & DATA</div>
-        <button class="secondary-btn" id="import-bookmarks-btn">Import Chrome Bookmarks</button>
-        <button class="secondary-btn" id="open-dashboard-btn">Open Full Dashboard ↗</button>
+        <div
+            style="font-size: 11px; font-weight: 800; color: #666; margin-bottom: 12px; letter-spacing: 0.5px; text-transform: uppercase;">
+            Manage Data</div>
+        <div class="settings-pane">
+            <button class="settings-btn" id="import-bookmarks-btn">
+                Import Chrome Bookmarks
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+            </button>
+            <button class="settings-btn" id="open-dashboard-btn">
+                <span>Open Full Dashboard <span class="badge soon">Coming Soon</span></span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                </svg>
+            </button>
+        </div>
         <div id="settings-status" class="status"></div>
     </div>
 
