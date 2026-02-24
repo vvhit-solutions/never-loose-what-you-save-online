@@ -3,14 +3,29 @@ import { SUPABASE_CONFIG } from './config.js'
 
 let session = null;
 
-// Initial load of session
-chrome.storage.local.get(['supabaseSession'], (result) => {
+// Initial load of session and install info
+chrome.storage.local.get(['supabaseSession', 'install_id'], async (result) => {
     if (result.supabaseSession) {
         session = result.supabaseSession;
         // Optionally refresh on load if close to expiry
         checkAndRefreshSession();
     }
+
+    if (result.install_id) {
+        installId = result.install_id;
+    } else {
+        // Fallback for existing users who didn't trigger onInstalled after update
+        installId = crypto.randomUUID();
+        const now = new Date().toISOString();
+        await chrome.storage.local.set({
+            install_timestamp: now,
+            install_id: installId
+        });
+        trackEvent('extension_install', { reason: 'retroactive_track' });
+    }
 });
+
+let installId = null;
 
 async function checkAndRefreshSession() {
     if (!session || !session.refresh_token) return;
@@ -94,7 +109,63 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         chrome.storage.local.remove(['supabaseSession']);
         sendResponse({ success: true });
     }
+
+    if (request.action === 'trackEvent') {
+        trackEvent(request.eventName, request.metadata)
+            .then(() => sendResponse({ success: true }))
+            .catch((err) => sendResponse({ success: false, error: err.message }));
+        return true;
+    }
 });
+
+// Install Tracking
+chrome.runtime.onInstalled.addListener(async (details) => {
+    const now = new Date().toISOString();
+    if (details.reason === 'install') {
+        const newInstallId = crypto.randomUUID();
+        await chrome.storage.local.set({
+            install_timestamp: now,
+            install_id: newInstallId
+        });
+        installId = newInstallId;
+        trackEvent('extension_install', { reason: 'new_install' });
+    } else if (details.reason === 'update') {
+        trackEvent('extension_update', { previousVersion: details.previousVersion });
+    }
+});
+
+// Analytics Helper
+async function trackEvent(eventName, metadata = {}) {
+    try {
+        const payload = {
+            event_name: eventName,
+            user_id: session?.user?.id || null,
+            metadata: {
+                ...metadata,
+                install_id: installId,
+                url: metadata.url || '',
+                version: chrome.runtime.getManifest().version
+            },
+            created_at: new Date().toISOString()
+        };
+
+        // In case of 'install', we might not have a session yet
+        const auth = session ? getAuthHeader() : `Bearer ${SUPABASE_CONFIG.anonKey}`;
+
+        fetch(`${SUPABASE_CONFIG.url}/rest/v1/analytics`, {
+            method: 'POST',
+            headers: {
+                'apikey': SUPABASE_CONFIG.anonKey,
+                'Authorization': auth,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        }).catch(err => console.error('Analytics fetch background error:', err));
+
+    } catch (err) {
+        console.error('Analytics tracking error:', err);
+    }
+}
 
 function getAuthHeader() {
     return session ? `Bearer ${session.access_token}` : `Bearer ${SUPABASE_CONFIG.anonKey}`;
@@ -220,6 +291,10 @@ async function saveWithFetch(pageData) {
         const data = await response.json();
         const savedItem = data[0];
         triggerAIWithFetch(savedItem.id);
+
+        // Track success
+        trackEvent('page_saved', { url: pageData.url, title: pageData.title });
+
         return savedItem;
     } catch (err) {
         clearTimeout(timeoutId);
@@ -243,27 +318,72 @@ async function getRecentSaves() {
 }
 
 async function searchSaves(query) {
-    const response = await fetchWithRetry(`${SUPABASE_CONFIG.url}/functions/v1/search-saves`, {
-        method: 'POST',
-        headers: {
-            'apikey': SUPABASE_CONFIG.anonKey,
-            'Authorization': getAuthHeader(),
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ query })
-    });
+    // Track search attempt
+    trackEvent('search_performed', { query_length: query.length });
 
-    if (!response.ok) {
-        const userIdFilter = session ? `&user_id=eq.${session.user.id}` : '';
-        const fallbackResponse = await fetchWithRetry(`${SUPABASE_CONFIG.url}/rest/v1/saves?select=*&title=ilike.*${query}*${userIdFilter}&limit=10`, {
-            headers: {
-                'apikey': SUPABASE_CONFIG.anonKey,
-                'Authorization': getAuthHeader()
+    const userIdFilter = session ? `&user_id=eq.${session.user.id}` : '';
+
+    // 1. Keyword Search (Fast, case-insensitive matches)
+    // We'll search title, description, and URL using Supabase OR filters
+    const keywordUrl = `${SUPABASE_CONFIG.url}/rest/v1/saves?select=*&or=(title.ilike.*${query}*,description.ilike.*${query}*,url.ilike.*${query}*)${userIdFilter}&limit=10`;
+
+    // 2. Semantic Search (via Edge Function)
+    const semanticUrl = `${SUPABASE_CONFIG.url}/functions/v1/search-saves`;
+
+    try {
+        // Run them in parallel for speed
+        const [keywordRes, semanticRes] = await Promise.all([
+            fetchWithRetry(keywordUrl, {
+                headers: { 'apikey': SUPABASE_CONFIG.anonKey, 'Authorization': getAuthHeader() }
+            }),
+            fetchWithRetry(semanticUrl, {
+                method: 'POST',
+                headers: {
+                    'apikey': SUPABASE_CONFIG.anonKey,
+                    'Authorization': getAuthHeader(),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ query })
+            })
+        ]);
+
+        let keywordResults = [];
+        if (keywordRes.ok) keywordResults = await keywordRes.json();
+
+        let semanticResults = [];
+        if (semanticRes.ok) {
+            const data = await semanticRes.json();
+            semanticResults = data.results || [];
+        }
+
+        // Merge and deduplicate
+        // Use a Map to keep unique items by ID
+        const combined = new Map();
+
+        // Prioritize semantic results (they go in first)
+        semanticResults.forEach(item => combined.set(item.id, item));
+
+        // Add keyword results if they aren't already there
+        // Keyword results are inherently case-insensitive because of 'ilike'
+        keywordResults.forEach(item => {
+            if (!combined.has(item.id)) {
+                combined.set(item.id, item);
             }
         });
-        return fallbackResponse.json();
-    }
 
-    const data = await response.json();
-    return data.results || [];
+        const finalResults = Array.from(combined.values());
+        return finalResults;
+
+    } catch (err) {
+        console.error('Hybrid search error:', err);
+        // Fail gracefully with keyword results
+        try {
+            const fallback = await fetchWithRetry(keywordUrl, {
+                headers: { 'apikey': SUPABASE_CONFIG.anonKey, 'Authorization': getAuthHeader() }
+            });
+            return fallback.ok ? await fallback.json() : [];
+        } catch (e) {
+            return [];
+        }
+    }
 }

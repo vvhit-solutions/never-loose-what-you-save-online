@@ -21,8 +21,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const settingsStatus = document.getElementById('settings-status');
     const memoryJog = document.getElementById('memory-jog');
     const jogLink = document.getElementById('jog-link');
+    const nudgeContainer = document.getElementById('nudge-container');
 
     let currentTab = null;
+
+    // Analytics Helper
+    function trackEvent(eventName, metadata = {}) {
+        chrome.runtime.sendMessage({ action: 'trackEvent', eventName, metadata });
+    }
 
     // 1. Initial Auth Check
     const { supabaseSession } = await chrome.storage.local.get('supabaseSession');
@@ -71,6 +77,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         checkMemoryJog();
+        showOnboardingNudge();
+
+        // Track session active
+        trackEvent('popup_opened');
+    }
+
+    async function showOnboardingNudge() {
+        const { has_saved_page, has_searched } = await chrome.storage.local.get(['has_saved_page', 'has_searched']);
+
+        nudgeContainer.innerHTML = '';
+
+        if (!has_saved_page) {
+            renderNudge('Welcome! ✨', 'Open any useful page and click "Remember this Page". You\'ll never lose it again!', '💡');
+        } else if (!has_searched) {
+            renderNudge('Great job! 🔍', 'Now try searching for that page in the Search tab to see how easy it is to find!', '⚡');
+        }
+    }
+
+    function renderNudge(title, text, icon) {
+        nudgeContainer.innerHTML = `
+            <div class="nudge-banner">
+                <div class="nudge-icon">${icon}</div>
+                <div class="nudge-content">
+                    <div class="nudge-title">${title}</div>
+                    <div class="nudge-text">${text}</div>
+                </div>
+                <button class="nudge-close" id="close-nudge">✕</button>
+            </div>
+        `;
+        document.getElementById('close-nudge').onclick = () => nudgeContainer.innerHTML = '';
     }
 
     // 2. Login Flow
@@ -145,14 +181,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Tab Switching
     tabBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
             const target = btn.dataset.tab;
             tabBtns.forEach(b => b.classList.remove('active'));
             panes.forEach(p => p.classList.remove('active'));
             btn.classList.add('active');
             document.getElementById(target).classList.add('active');
 
-            if (target === 'search-pane') loadRecentSaves();
+            if (target === 'search-pane') {
+                loadRecentSaves();
+                // If they are in search tab, they might be searching
+                const { has_saved_page, has_searched } = await chrome.storage.local.get(['has_saved_page', 'has_searched']);
+                if (has_saved_page && !has_searched) {
+                    chrome.storage.local.set({ has_searched: true });
+                    setTimeout(() => showOnboardingNudge(), 1000);
+                }
+            }
         });
     });
 
@@ -186,7 +230,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (res && res.success) {
                         saveStatus.textContent = '✅ Saved! AI is summarizing...';
                         saveStatus.className = 'status success';
-                        setTimeout(() => { saveStatus.style.display = 'none'; }, 3000);
+
+                        // Update onboarding state
+                        chrome.storage.local.set({ has_saved_page: true });
+                        setTimeout(() => {
+                            saveStatus.style.display = 'none';
+                            showOnboardingNudge();
+                        }, 3000);
+
                         saveBtn.disabled = false;
                     } else {
                         const errorMsg = res?.error || 'Unknown error occurred';
@@ -250,7 +301,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         resultsList.querySelectorAll('.result-item').forEach(el => {
             el.addEventListener('click', () => {
-                chrome.tabs.create({ url: el.dataset.url });
+                const url = el.dataset.url;
+                trackEvent('item_opened', { url, source: 'search_results' });
+                chrome.tabs.create({ url });
             });
         });
     }
@@ -264,7 +317,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (res.success && res.data && res.data.length > 0) {
                 const random = res.data[Math.floor(Math.random() * res.data.length)];
                 jogLink.textContent = random.title;
-                jogLink.onclick = () => chrome.tabs.create({ url: random.url });
+                jogLink.onclick = () => {
+                    trackEvent('item_opened', { url: random.url, source: 'memory_jog' });
+                    chrome.tabs.create({ url: random.url });
+                };
                 memoryJog.style.display = 'block';
                 chrome.storage.local.set({ lastJog: now });
             } else {
