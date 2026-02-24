@@ -123,6 +123,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             .catch((error) => sendResponse({ success: false, error: error.message }));
         return true;
     }
+
+    if (request.action === 'checkAlreadySaved') {
+        checkAlreadySaved(request.url)
+            .then((exists) => sendResponse({ success: true, exists }))
+            .catch((error) => sendResponse({ success: false, error: error.message }));
+        return true;
+    }
 });
 
 // Install Tracking
@@ -359,6 +366,27 @@ async function getSmartJog() {
 
     if (recentResponse.ok) return recentResponse.json();
     return [];
+}
+
+async function checkAlreadySaved(url) {
+    if (!session) return false;
+
+    // Exact match on URL for this user
+    const userIdFilter = `&user_id=eq.${session.user.id}`;
+    const checkUrl = `${SUPABASE_CONFIG.url}/rest/v1/saves?select=id&url=eq.${encodeURIComponent(url)}${userIdFilter}&limit=1`;
+
+    const response = await fetchWithRetry(checkUrl, {
+        headers: {
+            'apikey': SUPABASE_CONFIG.anonKey,
+            'Authorization': getAuthHeader()
+        }
+    });
+
+    if (response.ok) {
+        const data = await response.json();
+        return data.length > 0;
+    }
+    return false;
 }
 
 async function searchSaves(query) {

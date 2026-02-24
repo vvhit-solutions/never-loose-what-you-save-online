@@ -91,6 +91,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             currentTab = tab;
             pageTitleEl.textContent = tab.title;
             pageUrlEl.textContent = tab.url;
+
+            // Check if already saved
+            chrome.runtime.sendMessage({ action: 'checkAlreadySaved', url: tab.url }, (res) => {
+                if (res && res.success && res.exists) {
+                    saveBtn.textContent = '✅ Already Saved';
+                    saveBtn.disabled = true;
+                    saveBtn.style.background = '#333';
+                    saveBtn.style.color = '#888';
+                    saveBtn.style.cursor = 'default';
+                }
+            });
         }
 
         checkMemoryJog();

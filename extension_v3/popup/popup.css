@@ -48,7 +48,16 @@ body {
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
+    margin-bottom: 2px;
+}
+
+.subtitle {
+    font-size: 10px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    opacity: 0.8;
     margin-bottom: 4px;
+    letter-spacing: 0.1px;
 }
 
 .user-info {
