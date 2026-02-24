@@ -41,24 +41,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         authPane.style.display = 'none';
         mainContent.style.display = 'block';
 
-        // Show User Info in Header
-        if (supabaseSession && supabaseSession.user) {
-            userInfoEl.style.display = 'block';
-            const user = supabaseSession.user;
+        // Get the latest session directly from storage
+        const { supabaseSession: currentSession } = await chrome.storage.local.get('supabaseSession');
 
-            // Try to find a human-readable name, fall back to email
+        if (currentSession && currentSession.user) {
+            userInfoEl.style.display = 'block';
+            const user = currentSession.user;
+
+            // Debug log to see what's in the user object
+            console.log('User metadata:', user.user_metadata);
+
+            // Try multiple common fields for the name
             const name = user.user_metadata?.full_name ||
                 user.user_metadata?.name ||
-                (user.email ? user.email.split('@')[0] : 'Member');
+                user.user_metadata?.preferred_username ||
+                (user.email ? user.email.split('@')[0] : 'User');
 
             userNameEl.textContent = `Hello, ${name}`;
+        } else {
+            userNameEl.textContent = 'Hello, Guest';
         }
 
         // Initialize Page Data
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        currentTab = tab;
-        pageTitleEl.textContent = tab.title;
-        pageUrlEl.textContent = tab.url;
+        if (tab) {
+            currentTab = tab;
+            pageTitleEl.textContent = tab.title;
+            pageUrlEl.textContent = tab.url;
+        }
 
         checkMemoryJog();
     }
@@ -149,23 +159,56 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Save Functionality
     saveBtn.addEventListener('click', async () => {
         saveBtn.disabled = true;
+        saveStatus.style.display = 'block';
         saveStatus.textContent = '💾 Saving to Cloud...';
         saveStatus.className = 'status info';
 
-        chrome.tabs.sendMessage(currentTab.id, { action: 'extractContent' }, (response) => {
-            const data = response || { title: currentTab.title, url: currentTab.url };
-            chrome.runtime.sendMessage({ action: 'savePage', data }, (res) => {
-                if (res.success) {
-                    saveStatus.textContent = '✅ Saved! AI is summarizing...';
-                    saveStatus.className = 'status success';
-                    setTimeout(() => { saveStatus.style.display = 'none'; }, 3000);
-                } else {
-                    saveStatus.textContent = '❌ ' + (res.error || 'Failed to save');
+        if (!currentTab) {
+            saveStatus.textContent = '❌ Error: No active tab found';
+            saveStatus.className = 'status error';
+            saveBtn.disabled = false;
+            return;
+        }
+
+        try {
+            chrome.tabs.sendMessage(currentTab.id, { action: 'extractContent' }, (response) => {
+                const data = response || { title: currentTab.title, url: currentTab.url };
+
+                // Add a timeout for the save operation
+                const saveTimeout = setTimeout(() => {
+                    saveStatus.textContent = '❌ Connection timeout. Check your network.';
                     saveStatus.className = 'status error';
                     saveBtn.disabled = false;
-                }
+                }, 10000);
+
+                chrome.runtime.sendMessage({ action: 'savePage', data }, (res) => {
+                    clearTimeout(saveTimeout);
+                    if (res && res.success) {
+                        saveStatus.textContent = '✅ Saved! AI is summarizing...';
+                        saveStatus.className = 'status success';
+                        setTimeout(() => { saveStatus.style.display = 'none'; }, 3000);
+                        saveBtn.disabled = false;
+                    } else {
+                        const errorMsg = res?.error || 'Unknown error occurred';
+
+                        // If it's still 401 after retry, or contains JWT expired, force logout
+                        if (errorMsg.includes('JWT') || errorMsg.includes('expired') || errorMsg.includes('Unauthorized')) {
+                            saveStatus.textContent = '❌ Session expired. Please log in again.';
+                            setTimeout(() => handleLogout(), 2000);
+                        } else {
+                            saveStatus.textContent = '❌ ' + errorMsg;
+                        }
+
+                        saveStatus.className = 'status error';
+                        saveBtn.disabled = false;
+                    }
+                });
             });
-        });
+        } catch (err) {
+            saveStatus.textContent = '❌ Error: ' + err.message;
+            saveStatus.className = 'status error';
+            saveBtn.disabled = false;
+        }
     });
 
     // Search Functionality
