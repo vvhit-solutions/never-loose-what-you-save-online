@@ -6,6 +6,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const mainContent = document.getElementById('main-content');
     const loginBtn = document.getElementById('login-btn');
     const logoutBtn = document.getElementById('logout-btn');
+    const userInfoEl = document.getElementById('user-info');
+    const userNameEl = document.getElementById('user-name-display');
 
     const tabBtns = document.querySelectorAll('.tab-btn');
     const panes = document.querySelectorAll('.content-pane');
@@ -38,6 +40,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function showMainInterface() {
         authPane.style.display = 'none';
         mainContent.style.display = 'block';
+
+        // Show User Info in Header
+        if (supabaseSession && supabaseSession.user) {
+            userInfoEl.style.display = 'block';
+            const user = supabaseSession.user;
+
+            // Try to find a human-readable name, fall back to email
+            const name = user.user_metadata?.full_name ||
+                user.user_metadata?.name ||
+                (user.email ? user.email.split('@')[0] : 'Member');
+
+            userNameEl.textContent = `Hello, ${name}`;
+        }
 
         // Initialize Page Data
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -111,10 +126,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // 3. Logout Flow
-    logoutBtn.addEventListener('click', async () => {
+    const handleLogout = async () => {
         await chrome.runtime.sendMessage({ action: 'logout' });
         location.reload(); // Refresh popup to show login screen
-    });
+    };
+
+    logoutBtn.addEventListener('click', handleLogout);
 
     // Tab Switching
     tabBtns.forEach(btn => {
