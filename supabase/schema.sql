@@ -34,28 +34,33 @@ CREATE TABLE IF NOT EXISTS saves (
 -- Enable Row Level Security
 ALTER TABLE saves ENABLE ROW LEVEL SECURITY;
 
--- Create policy to allow public viewing (for testing)
--- In production, you would use (auth.uid() = user_id)
-CREATE POLICY "Public can view saves" 
+-- Enable Row Level Security
+ALTER TABLE saves ENABLE ROW LEVEL SECURITY;
+
+-- SECURE POLICIES: Users can only see/edit their own data
+DROP POLICY IF EXISTS "Public can view saves" ON saves;
+DROP POLICY IF EXISTS "Public can insert saves" ON saves;
+DROP POLICY IF EXISTS "Public can update saves" ON saves;
+
+CREATE POLICY "Users can view own saves" 
 ON saves FOR SELECT 
-USING (true);
+USING (auth.uid() = user_id);
 
--- Create policy to allow public inserts (for testing)
-CREATE POLICY "Public can insert saves" 
+CREATE POLICY "Users can insert own saves" 
 ON saves FOR INSERT 
-WITH CHECK (true);
+WITH CHECK (auth.uid() = user_id);
 
--- Create policy to allow public updates (for testing)
-CREATE POLICY "Public can update saves" 
+CREATE POLICY "Users can update own saves" 
 ON saves FOR UPDATE 
-USING (true);
+USING (auth.uid() = user_id);
 
--- Create a function for similarity search
+-- Updated function for similarity search with user security
 DROP FUNCTION IF EXISTS match_saves(vector,float,int);
 CREATE OR REPLACE FUNCTION match_saves (
   query_embedding VECTOR(1536),
   match_threshold FLOAT,
-  match_count INT
+  match_count INT,
+  p_user_id UUID -- Pass the user ID explicitly
 )
 RETURNS TABLE (
   id UUID,
@@ -81,7 +86,9 @@ BEGIN
     saves.created_at,
     1 - (saves.embedding <=> query_embedding) AS similarity
   FROM saves
-  WHERE 1 - (saves.embedding <=> query_embedding) > match_threshold
+  WHERE 
+    saves.user_id = p_user_id AND -- SECURITY: Filter by user
+    1 - (saves.embedding <=> query_embedding) > match_threshold
   ORDER BY saves.embedding <=> query_embedding
   LIMIT match_count;
 END;

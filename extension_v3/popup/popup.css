@@ -356,3 +356,61 @@ body {
 .secondary-btn:hover {
     background: #2a2a2a;
 }
+
+/* Auth Pane */
+.auth-pane {
+    padding: 30px 20px;
+    text-align: center;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    min-height: 400px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.auth-tagline {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-bottom: 30px;
+    opacity: 0.8;
+}
+
+.google-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background-color: white;
+    color: #3c4043;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 24px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    width: 240px;
+}
+
+.google-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.google-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.settings-btn.danger {
+    margin-top: 10px;
+    background-color: rgba(231, 76, 60, 0.1);
+    color: #e74c3c;
+    border-color: rgba(231, 76, 60, 0.2);
+}
+
+.settings-btn.danger:hover {
+    background-color: rgba(231, 76, 60, 0.2);
+}

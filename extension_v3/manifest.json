@@ -7,8 +7,17 @@
         "activeTab",
         "storage",
         "scripting",
-        "bookmarks"
+        "bookmarks",
+        "identity"
     ],
+    "host_permissions": [
+        "https://*.supabase.co/*",
+        "https://*.google.com/*",
+        "https://*.googleusercontent.com/*"
+    ],
+    "content_security_policy": {
+        "extension_pages": "script-src 'self'; object-src 'self'"
+    },
     "action": {
         "default_popup": "popup/popup.html"
     },

@@ -1,5 +1,12 @@
+import { SUPABASE_CONFIG } from '../scripts/config.js';
+
 document.addEventListener('DOMContentLoaded', async () => {
     // Elements
+    const authPane = document.getElementById('auth-pane');
+    const mainContent = document.getElementById('main-content');
+    const loginBtn = document.getElementById('login-btn');
+    const logoutBtn = document.getElementById('logout-btn');
+
     const tabBtns = document.querySelectorAll('.tab-btn');
     const panes = document.querySelectorAll('.content-pane');
     const pageTitleEl = document.getElementById('page-title');
@@ -15,13 +22,99 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let currentTab = null;
 
-    // Initialize
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    currentTab = tab;
-    pageTitleEl.textContent = tab.title;
-    pageUrlEl.textContent = tab.url;
+    // 1. Initial Auth Check
+    const { supabaseSession } = await chrome.storage.local.get('supabaseSession');
+    if (supabaseSession) {
+        showMainInterface();
+    } else {
+        showAuthInterface();
+    }
 
-    checkMemoryJog();
+    function showAuthInterface() {
+        authPane.style.display = 'flex';
+        mainContent.style.display = 'none';
+    }
+
+    async function showMainInterface() {
+        authPane.style.display = 'none';
+        mainContent.style.display = 'block';
+
+        // Initialize Page Data
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        currentTab = tab;
+        pageTitleEl.textContent = tab.title;
+        pageUrlEl.textContent = tab.url;
+
+        checkMemoryJog();
+    }
+
+    // 2. Login Flow
+    loginBtn.addEventListener('click', async () => {
+        console.log('Login button clicked');
+        loginBtn.disabled = true;
+        loginBtn.textContent = 'Authenticating...';
+
+        try {
+            const redirectUrl = chrome.identity.getRedirectURL();
+            console.log('Redirect URL:', redirectUrl);
+
+            // Re-adding prompt=select_account to help you debug which account is used
+            const authUrl = `${SUPABASE_CONFIG.url}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUrl)}&prompt=select_account&apikey=${SUPABASE_CONFIG.anonKey}`;
+
+            console.log('Requesting Auth URL:', authUrl);
+
+            chrome.identity.launchWebAuthFlow({
+                url: authUrl,
+                interactive: true
+            }, async (responseUrl) => {
+                console.log('Auth Flow Response URL:', responseUrl);
+
+                if (chrome.runtime.lastError) {
+                    console.error('Identity Error:', chrome.runtime.lastError);
+                    throw new Error(chrome.runtime.lastError.message);
+                }
+
+                if (!responseUrl) {
+                    throw new Error('No response URL received from Google.');
+                }
+
+                // Supabase returns params in the hash
+                const url = new URL(responseUrl);
+                const hash = url.hash.substring(1);
+                const params = new URLSearchParams(hash);
+
+                const accessToken = params.get('access_token');
+                const refreshToken = params.get('refresh_token');
+                const userRaw = params.get('user');
+
+                if (accessToken) {
+                    const session = {
+                        access_token: accessToken,
+                        refresh_token: refreshToken,
+                        user: JSON.parse(decodeURIComponent(userRaw || '{}'))
+                    };
+                    await chrome.runtime.sendMessage({ action: 'setSession', session });
+                    showMainInterface();
+                } else {
+                    // Check for error in query params (sometimes happens)
+                    const error = params.get('error_description') || params.get('error') || 'No token received';
+                    throw new Error(error);
+                }
+            });
+        } catch (err) {
+            console.error('Login Catch Block:', err);
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Error: ' + err.message.substring(0, 20) + '...';
+            setTimeout(() => { loginBtn.textContent = 'Sign in with Google'; }, 5000);
+            alert('Authentication Error:\n' + err.message);
+        }
+    });
+
+    // 3. Logout Flow
+    logoutBtn.addEventListener('click', async () => {
+        await chrome.runtime.sendMessage({ action: 'logout' });
+        location.reload(); // Refresh popup to show login screen
+    });
 
     // Tab Switching
     tabBtns.forEach(btn => {
@@ -104,17 +197,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Memory Jog (Resurfacing)
     async function checkMemoryJog() {
-        // For the best UX, we'll try to show a memory jog if we have saves,
-        // but prioritize showing it if it's been a while.
         const { lastJog } = await chrome.storage.local.get('lastJog');
         const now = Date.now();
-        const oneDay = 24 * 60 * 60 * 1000;
 
-        // We'll show a "random discovery" almost always if items exist,
-        // but the user can dismiss it or we can rotate it daily.
         chrome.runtime.sendMessage({ action: 'getRecentSaves' }, (res) => {
             if (res.success && res.data && res.data.length > 0) {
-                // Pick a random item from the last 10
                 const random = res.data[Math.floor(Math.random() * res.data.length)];
                 jogLink.textContent = random.title;
                 jogLink.onclick = () => chrome.tabs.create({ url: random.url });
@@ -145,6 +232,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     document.getElementById('open-dashboard-btn').onclick = () => {
-        chrome.tabs.create({ url: 'http://localhost:5173' }); // Adjust if needed
+        const dashboardUrl = 'http://localhost:5173'; // Fallback
+        chrome.tabs.create({ url: dashboardUrl });
     };
 });

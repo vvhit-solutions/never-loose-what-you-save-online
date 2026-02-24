@@ -2,12 +2,22 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 serve(async (req) => {
-    const { query } = await req.json()
-
+    // SECURITY: Get User ID from JWT
+    const authHeader = req.headers.get('Authorization')
     const supabase = createClient(
         Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '', // Use service role to bypass RLS for the query, but we filter manually
+        { auth: { persistSession: false } }
     )
+
+    // Extract user info from JWT
+    const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader?.replace('Bearer ', '') ?? '')
+
+    if (authError || !user) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+    }
+
+    const { query } = await req.json()
 
     try {
         const openaiKey = Deno.env.get('OPENAI_API_KEY');
@@ -33,11 +43,12 @@ serve(async (req) => {
 
         const queryEmbedding = embeddingData.data[0].embedding;
 
-        // 2. Perform vector search using RPC call
+        // 2. Perform vector search using RPC call - SECURED with user_id
         const { data: matches, error } = await supabase.rpc('match_saves', {
             query_embedding: queryEmbedding,
             match_threshold: 0.3,
             match_count: 10,
+            p_user_id: user.id // SECURITY: Pass the verified User ID
         })
 
         if (error) throw error;

@@ -3,7 +3,8 @@ import './App.css'
 
 // Configuration (Should come from environment variables in production)
 const SUPABASE_URL = 'https://cafgyalmjsfvsymuldml.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_8x0pYyyfuIBNDQSi0TZJdw_O5Dgd9-O';
+// IMPORTANT: Replace this with your actual Supabase 'anon' public key
+const SUPABASE_KEY = 'sb_publishable_uI-NEN1GyZXa8n2LdGf4NQ_wlaODqmm';
 
 function App() {
     const [saves, setSaves] = useState([])
