@@ -1,5 +1,5 @@
 // Content Script
-console.log('Never Lose Again: Content script loaded');
+console.log('Never Lose What You Save Online: Content script loaded');
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'extractContent') {

@@ -81,7 +81,7 @@ function App() {
         <div className="dashboard">
             <header className="dashboard-header">
                 <div className="logo-container">
-                    <h1 className="logo-text">Never Lose Again</h1>
+                    <h1 className="logo-text">Never Lose What You Save Online</h1>
                     <p className="logo-tagline">Your personal internet memory</p>
                 </div>
                 <div className="search-container">

@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "Never Lose Again - Internet Memory",
+    "name": "Never Lose What You Save Online",
     "version": "1.0.0",
-    "description": "Never lose what you save online again. One-click smart save with AI tagging.",
+    "description": "Never lose what you save online. One-click smart save with AI tagging.",
     "permissions": [
         "activeTab",
         "storage",
