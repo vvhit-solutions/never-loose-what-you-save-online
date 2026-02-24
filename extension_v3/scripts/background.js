@@ -116,6 +116,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             .catch((err) => sendResponse({ success: false, error: err.message }));
         return true;
     }
+
+    if (request.action === 'getSmartJog') {
+        getSmartJog()
+            .then((data) => sendResponse({ success: true, data }))
+            .catch((error) => sendResponse({ success: false, error: error.message }));
+        return true;
+    }
 });
 
 // Install Tracking
@@ -315,6 +322,43 @@ async function getRecentSaves() {
     });
     if (!response.ok) throw new Error('Failed to fetch recent saves');
     return response.json();
+}
+
+async function getSmartJog() {
+    const userIdFilter = session ? `&user_id=eq.${session.user.id}` : '';
+
+    // 1. Try to find items 3-14 days old
+    const now = new Date();
+    const threeDaysAgo = new Date(now.getTime() - (3 * 24 * 60 * 60 * 1000)).toISOString();
+    const fourteenDaysAgo = new Date(now.getTime() - (14 * 24 * 60 * 60 * 1000)).toISOString();
+
+    const oldUrl = `${SUPABASE_CONFIG.url}/rest/v1/saves?select=id,title,url,created_at${userIdFilter}&created_at=gte.${fourteenDaysAgo}&created_at=lte.${threeDaysAgo}&order=created_at.asc&limit=10`;
+
+    try {
+        const oldResponse = await fetchWithRetry(oldUrl, {
+            headers: { 'apikey': SUPABASE_CONFIG.anonKey, 'Authorization': getAuthHeader() }
+        });
+
+        if (oldResponse.ok) {
+            const items = await oldResponse.json();
+            if (items.length > 0) {
+                // Return a random one from this window
+                return [items[Math.floor(Math.random() * items.length)]];
+            }
+        }
+    } catch (e) {
+        console.error('Error fetching old joggable items:', e);
+    }
+
+    // 2. Fallback to just the most recent item if no older items exist
+    console.log('No older items found, falling back to recent for Memory Jog');
+    const recentUrl = `${SUPABASE_CONFIG.url}/rest/v1/saves?select=id,title,url,created_at${userIdFilter}&order=created_at.desc&limit=1`;
+    const recentResponse = await fetchWithRetry(recentUrl, {
+        headers: { 'apikey': SUPABASE_CONFIG.anonKey, 'Authorization': getAuthHeader() }
+    });
+
+    if (recentResponse.ok) return recentResponse.json();
+    return [];
 }
 
 async function searchSaves(query) {

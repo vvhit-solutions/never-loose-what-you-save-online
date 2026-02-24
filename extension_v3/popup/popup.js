@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const settingsStatus = document.getElementById('settings-status');
     const memoryJog = document.getElementById('memory-jog');
     const jogLink = document.getElementById('jog-link');
+    const jogTime = document.getElementById('jog-time');
     const nudgeContainer = document.getElementById('nudge-container');
 
     let currentTab = null;
@@ -28,6 +29,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Analytics Helper
     function trackEvent(eventName, metadata = {}) {
         chrome.runtime.sendMessage({ action: 'trackEvent', eventName, metadata });
+    }
+
+    function getTimeAgo(dateString) {
+        if (!dateString) return '';
+        const now = new Date();
+        const past = new Date(dateString);
+        const diffInMs = now - past;
+        const diffInSecs = Math.floor(diffInMs / 1000);
+        const diffInMins = Math.floor(diffInSecs / 60);
+        const diffInHours = Math.floor(diffInMins / 60);
+        const diffInDays = Math.floor(diffInHours / 24);
+
+        if (diffInDays > 0) return `Saved ${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+        if (diffInHours > 0) return `Saved ${diffInHours} hr${diffInHours > 1 ? 's' : ''} ago`;
+        if (diffInMins > 0) return `Saved ${diffInMins} min${diffInMins > 1 ? 's' : ''} ago`;
+        return 'Saved just now';
     }
 
     // 1. Initial Auth Check
@@ -233,10 +250,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                         // Update onboarding state
                         chrome.storage.local.set({ has_saved_page: true });
-                        setTimeout(() => {
-                            saveStatus.style.display = 'none';
-                            showOnboardingNudge();
-                        }, 3000);
+
+                        // Close window after 2 seconds
+                        setTimeout(() => window.close(), 2000);
 
                         saveBtn.disabled = false;
                     } else {
@@ -313,13 +329,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         const { lastJog } = await chrome.storage.local.get('lastJog');
         const now = Date.now();
 
-        chrome.runtime.sendMessage({ action: 'getRecentSaves' }, (res) => {
+        // Use getSmartJog to fetch 3-14 day old items with fallback
+        chrome.runtime.sendMessage({ action: 'getSmartJog' }, (res) => {
             if (res.success && res.data && res.data.length > 0) {
-                const random = res.data[Math.floor(Math.random() * res.data.length)];
-                jogLink.textContent = random.title;
+                const target = res.data[0];
+                jogLink.textContent = target.title;
+
+                if (jogTime && target.created_at) {
+                    jogTime.textContent = getTimeAgo(target.created_at);
+                }
+
                 jogLink.onclick = () => {
-                    trackEvent('item_opened', { url: random.url, source: 'memory_jog' });
-                    chrome.tabs.create({ url: random.url });
+                    trackEvent('item_opened', { url: target.url, source: 'memory_jog' });
+                    chrome.tabs.create({ url: target.url });
                 };
                 memoryJog.style.display = 'block';
                 chrome.storage.local.set({ lastJog: now });
