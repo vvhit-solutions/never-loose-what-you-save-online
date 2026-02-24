@@ -28,10 +28,15 @@ chrome.storage.local.get(['supabaseSession', 'install_id'], async (result) => {
 let installId = null;
 
 async function checkAndRefreshSession() {
-    if (!session || !session.refresh_token) return;
+    if (!session || !session.expires_at) return;
 
-    // Simple way to check if token is expired or about to expire (Supabase tokens usually last 1h)
-    // For now, we'll just try to refresh if the request fails, or proactively refresh if we want.
+    // Check if token expires in less than 5 minutes
+    const now = Math.floor(Date.now() / 1000);
+    const expiresAt = session.expires_at;
+
+    if (expiresAt - now < 300) {
+        await refreshSession();
+    }
 }
 
 async function refreshSession() {
@@ -49,13 +54,14 @@ async function refreshSession() {
 
         if (response.ok) {
             const data = await response.json();
+            const now = Math.floor(Date.now() / 1000);
             session = {
                 access_token: data.access_token,
                 refresh_token: data.refresh_token,
+                expires_at: now + data.expires_in,
                 user: data.user
             };
             await chrome.storage.local.set({ supabaseSession: session });
-            console.log('Session refreshed successfully');
             return true;
         } else {
             console.error('Failed to refresh session, logging out');
@@ -358,7 +364,6 @@ async function getSmartJog() {
     }
 
     // 2. Fallback to just the most recent item if no older items exist
-    console.log('No older items found, falling back to recent for Memory Jog');
     const recentUrl = `${SUPABASE_CONFIG.url}/rest/v1/saves?select=id,title,url,created_at${userIdFilter}&order=created_at.desc&limit=1`;
     const recentResponse = await fetchWithRetry(recentUrl, {
         headers: { 'apikey': SUPABASE_CONFIG.anonKey, 'Authorization': getAuthHeader() }

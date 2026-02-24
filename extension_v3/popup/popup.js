@@ -71,9 +71,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             userInfoEl.style.display = 'block';
             const user = currentSession.user;
 
-            // Debug log to see what's in the user object
-            console.log('User metadata:', user.user_metadata);
-
             // Try multiple common fields for the name
             const name = user.user_metadata?.full_name ||
                 user.user_metadata?.name ||
@@ -139,24 +136,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 2. Login Flow
     loginBtn.addEventListener('click', async () => {
-        console.log('Login button clicked');
         loginBtn.disabled = true;
         loginBtn.textContent = 'Authenticating...';
 
         try {
             const redirectUrl = chrome.identity.getRedirectURL();
-            console.log('Redirect URL:', redirectUrl);
 
             // Re-adding prompt=select_account to help you debug which account is used
             const authUrl = `${SUPABASE_CONFIG.url}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUrl)}&prompt=select_account&apikey=${SUPABASE_CONFIG.anonKey}`;
-
-            console.log('Requesting Auth URL:', authUrl);
 
             chrome.identity.launchWebAuthFlow({
                 url: authUrl,
                 interactive: true
             }, async (responseUrl) => {
-                console.log('Auth Flow Response URL:', responseUrl);
 
                 if (chrome.runtime.lastError) {
                     console.error('Identity Error:', chrome.runtime.lastError);
@@ -177,10 +169,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const userRaw = params.get('user');
 
                 if (accessToken) {
+                    const now = Math.floor(Date.now() / 1000);
                     const session = {
-                        access_token: accessToken,
-                        refresh_token: refreshToken,
-                        user: JSON.parse(decodeURIComponent(userRaw || '{}'))
+                        access_token: params.get('access_token'),
+                        refresh_token: params.get('refresh_token'),
+                        expires_at: now + parseInt(params.get('expires_in')),
+                        user: JSON.parse(decodeURIComponent(params.get('user')))
                     };
                     await chrome.runtime.sendMessage({ action: 'setSession', session });
                     showMainInterface();

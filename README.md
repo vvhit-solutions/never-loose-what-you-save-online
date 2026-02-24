@@ -5,10 +5,12 @@ Your personal AI-powered "Second Brain." This Chrome extension helps you save, s
 ## 🚀 Features
 
 -   **One-Click Smart Save**: Save any page with its title, URL, and description.
--   **AI Auto-Processing**: Powered by OpenAI (`gpt-4o-mini`), it automatically summarizes pages and adds smart tags.
+-   **AI Auto-Processing**: Powered by OpenAI (`gpt-4o-mini`), it automatically summarizes pages and adds smart tags with strict token capping for cost-efficiency.
 -   **Semantic "Brain" Search**: Find things by concept, not just keywords, using OpenAI's `text-embedding-3-small`.
--   **Memory Jog**: A resurfacing system that helps you rediscover older memories.
+-   **Memory Jog**: A smart resurfacing system that prioritizes items from 3-14 days ago to help you rediscover older saves.
+-   **Stripe Integration**: Built-in monthly and yearly subscription tiers for monetization.
 -   **Bookmark Import**: Bring your existing Chrome bookmarks into your new digital memory.
+-   **Duplicate Detection**: Prevents double-saving the same URL to keep your brain organized.
 
 ---
 
@@ -49,7 +51,7 @@ A React-based web app to view all your memories.
 
 ## 💡 How to Use
 
-1.  **Saving**: Click the extension icon and hit "Remember this Page." 
+1.  **Saving**: Click the extension icon and hit "Save this Page." 
 2.  **Searching**: Use the "Search" tab in the popup. Try searching for concepts (e.g., "smart sea animals" to find pages about dolphins).
 3.  **Resurfacing**: Check the "Memory Jog" section daily to keep your knowledge fresh.
 4.  **Importing**: Go to Settings in the popup to import your old Chrome bookmarks.
